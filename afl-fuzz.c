@@ -262,6 +262,7 @@ struct queue_entry {
 
   u8  file_checksum[SHA_DIGEST_LENGTH];
   u32 fuzz_times_since_last_interest;
+  u32 fuzz_times_total;
 
   struct queue_entry *next,           /* Next element, if any             */
                      *next_100;       /* 100 elements ahead               */
@@ -1150,6 +1151,7 @@ static void add_to_queue(u8* fname, u32 len, u8 passed_det) {
   q->passed_det   = passed_det;
   calculate_file_sha1(fname, q->file_checksum);
   q->fuzz_times_since_last_interest = 0;
+  q->fuzz_times_total = 0;
 
   if (q->depth > max_depth) max_depth = q->depth;
 
@@ -5006,6 +5008,7 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
 
   write_to_testcase(out_buf, len);
   queue_cur->fuzz_times_since_last_interest++;
+  queue_cur->fuzz_times_total++;
   fault = run_target(argv, exec_tmout);
 
   if (vanilla_afl) --vanilla_afl;
@@ -5058,7 +5061,7 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
     char buffer[2048];
     sprintf(buffer,
             "{\"fuzzer\": \"FairFuzz\", \"old\": \"%s\", \"new\": \"%s\", "
-            "\"tries\": \"%d\"}",
+            "\"tries\": %d}",
             old_md5_string, new_md5_string, queue_cur->fuzz_times_since_last_interest);
     FluentF(buffer);
     queue_cur->fuzz_times_since_last_interest = 0;
@@ -9161,6 +9164,20 @@ stop_fuzzing:
 
   SAYF(CURSOR_SHOW cLRD "\n\n+++ Testing aborted %s +++\n" cRST,
        stop_soon == 2 ? "programmatically" : "by user");
+
+
+  for (struct queue_entry *q = queue; q; q = q->next) {
+    u8 sha1_string[SHA_DIGEST_LENGTH * 2 + 1] = {0};
+    for (u32 i = 0; i < SHA_DIGEST_LENGTH; i++) {
+      sprintf(sha1_string + i * 2, "%02x", q->file_checksum[i]);
+    }
+    static char buffer[2048];
+    sprintf(buffer,
+            "{\"fuzzer\": \"FairFuzz\", \"sha\": \"%s\", \"tries\": %d}",
+            sha1_string, q->fuzz_times_total
+    );
+    FluentF(buffer);
+  }
 
   /* Running for more than 30 minutes but still doing first cycle? */
 
