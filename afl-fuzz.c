@@ -5085,6 +5085,7 @@ EXP_ST u8 common_fuzz_stuff(char** argv, u8* out_buf, u32 len) {
       FluentF(buffer);
       q->fuzz_times_total = 0;
     }
+    FluentF("{\"fuzzer\": \"FairFuzz\", \"separator\": \"\"}");
     last_log_time = cur_time;
   }
 
